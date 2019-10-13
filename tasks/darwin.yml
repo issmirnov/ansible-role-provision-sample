@@ -1,0 +1,9 @@
+---
+# - name: install git
+#   shell: xcode-select --install
+#   become: yes
+
+- include_tasks: osx/apps.yml
+- include_tasks: osx/defaults.yml
+- include_tasks: osx/dock.yml
+- include_tasks: osx/terminal.yml

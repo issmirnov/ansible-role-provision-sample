@@ -1,0 +1,59 @@
+---
+# NOTE: deprecated in favor of https://github.com/sharkdp/bat
+- name: Check if ccat already installed
+  shell: ccat -v
+  register: ccat_installed
+  ignore_errors: yes
+  changed_when: false
+  failed_when: false
+  tags: ccat
+
+- name: get latest release
+  uri:
+    url: "{{ github_api }}/repos/jingweno/ccat/releases/latest"
+    return_content: yes
+  register: release
+  no_log: yes
+  tags:
+    - ccat
+
+- block:
+
+  - name: delete outdated ccat
+    become: yes
+    file:
+      state: absent
+      path: /usr/local/bin/ccat
+    when: ccat_installed.rc == 0 and release.json.name not in ccat_installed.stdout
+
+  - name: get package url
+    set_fact:
+      ccat_release_json: "{{ item }}"
+    no_log: yes
+    with_items: "{{ release.json.assets }}"
+    when: '"linux-amd64" in item.name'
+
+
+  - name: extract ccat to /usr/local/bin
+    become: yes
+    unarchive:
+      src: "{{ ccat_release_json.browser_download_url }}"
+      dest: /tmp
+      copy: no
+      list_files: no
+      extra_opts: "--strip-components=1"
+      creates: "/tmp/ccat"
+      exclude:
+        - LICENSE
+        - README.md
+
+
+  - name: move ccat into /usr/local/bin
+    become: yes
+    command: "mv /tmp/ccat /usr/local/bin/ccat"
+    args:
+      creates: /usr/local/bin/ccat
+
+  when: ccat_installed.rc != 0 or release.json.name not in ccat_installed.stdout
+  tags:
+    - ccat

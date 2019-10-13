@@ -1,0 +1,68 @@
+---
+- name: set up facts for fzf
+  set_fact:
+    fzf_path: "{{ fzf_path | default('/opt/fzf')}}"
+  tags:
+    - fzf
+
+- name: Check if fzf already installed
+  shell: "{{ fzf_path }}/bin/fzf --version"
+  register: fzf_installed
+  failed_when: false
+  changed_when: false
+  tags: fzf
+
+- name: get latest release
+  uri:
+    url: "{{ github_api }}/repos/junegunn/fzf-bin/releases/latest"
+    return_content: yes
+  register: release
+  no_log: yes
+
+- block:
+  - name: delete outdated fzf
+    become: yes
+    file:
+      state: absent
+      path: "{{ fzf_path }}/bin/fzf"
+    when: fzf_installed.rc == 0 and release.json.name not in fzf_installed.stdout
+
+  - name: "set permissions on {{ fzf_path }}"
+    become: yes
+    file:
+      path: "{{ fzf_path }}"
+      owner: "{{ ansible_user_id }}"
+      state: directory
+
+  # clone latest support files.
+  - name: clone fzf support files
+    git:
+      repo: https://github.com/junegunn/fzf.git
+      dest: "{{ fzf_path }}"
+      force: yes
+      depth: 1
+      accept_hostkey: yes
+
+  - name: set architecture string for pkg download
+    set_fact:
+      fzf_arch_string: "linux_{{ arch_map[ansible_architecture] }}"
+
+  - name: get package url for binary
+    set_fact:
+      fzf_release_json: "{{ item }}"
+    no_log: yes
+    with_items: "{{ release.json.assets }}"
+    when: "fzf_arch_string in item.name"
+
+  - name: get fzf binary
+    become: yes
+    unarchive:
+      src: "{{ fzf_release_json.browser_download_url }}"
+      dest: "{{ fzf_path }}/bin"
+      copy: no
+      list_files: no
+      creates: "{{ fzf_path }}/bin/fzf"
+
+  when: fzf_installed.rc != 0 or release.json.name not in fzf_installed.stdout
+  tags:
+    - fzf

@@ -1,0 +1,52 @@
+---
+- name: Check if bat already installed
+  shell: bat --version
+  register: bat_installed
+  ignore_errors: yes
+  changed_when: false
+  failed_when: false
+  tags: bat
+
+- name: get latest release
+  uri:
+    url: "{{ github_api }}/repos/sharkdp/bat/releases/latest"
+    return_content: yes
+  register: release
+  no_log: yes
+  tags:
+    - bat
+
+- block:
+
+  - name: delete outdated bat
+    become: yes
+    file:
+      state: absent
+      path: /usr/local/bin/bat
+    when: bat_installed.rc == 0 and release.json.name[1:] not in bat_installed.stdout
+
+  - name: get package url
+    set_fact:
+      bat_release_json: "{{ item }}"
+    no_log: yes
+    with_items: "{{ release.json.assets }}"
+    when: '"linux-gnu" in item.name'
+
+
+  - name: extract bat to /usr/local/bin
+    become: yes
+    unarchive:
+      src: "{{ bat_release_json.browser_download_url }}"
+      dest: /usr/local/bin
+      copy: no
+      list_files: no
+      extra_opts: "--strip-components=1"
+      creates: "/usr/local/bin/bat"
+      exclude:
+        - LICENSE-APACHE
+        - LICENSE-MIT
+        - README.md
+
+  when: bat_installed.rc != 0 or release.json.name[1:] not in bat_installed.stdout
+  tags:
+    - bat

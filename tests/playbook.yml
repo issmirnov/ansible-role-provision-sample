@@ -1,0 +1,22 @@
+---
+- hosts: localhost
+  remote_user: root
+  vars:
+    skip_upgrades: yes
+  pre_tasks:
+    # Recommended, since yum might have old caches.
+    - name: update yum caches
+      yum:
+        list: updates
+        update_cache: yes
+      when: ansible_os_family == 'RedHat'
+      changed_when: false # for idempotency
+
+    # Required, since ubuntu image comes without caches.
+    - name: update apt caches
+      apt:
+        update_cache: yes
+      when: ansible_os_family == 'Debian'
+      changed_when: false # for idempotency
+  roles:
+    - ansible-role-provision

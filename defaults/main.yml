@@ -1,0 +1,17 @@
+# Skips upgrades, good when doing rapid iterations.
+skip_upgrades: false
+
+# Removes system ZSH when compiling from source
+uninstall_system_zsh: no
+install_zsh_from_source: yes
+
+# architecture to github release map
+arch_map:
+  armv7l: arm7
+  x86_64: amd64
+
+# Set the GitHub API root.
+# In our CI/CD environment we blow past the github rate limits super quickly.
+# To get around this problem, in our testing playbooks we set this variable
+# to REDACTED, which is a custom Varnish cache with my private oauth header.
+github_api: "https://api.github.com"

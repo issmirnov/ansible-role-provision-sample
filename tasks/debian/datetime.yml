@@ -1,0 +1,18 @@
+---
+- name: install tzdata
+  apt:
+    name: tzdata
+    state: present
+
+- name: link in tzdata
+  file:
+    src: /usr/share/zoneinfo/America/Los_Angeles
+    dest: /etc/localtime
+    force: yes
+    state: link
+  become: yes
+  
+- name: load timezone changes
+  command: dpkg-reconfigure -f noninteractive tzdata
+  changed_when: false # i'm lazy and want idempotency
+  become: yes

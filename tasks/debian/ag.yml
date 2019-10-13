@@ -1,0 +1,81 @@
+---
+- name: Check if ag already installed
+  shell: ag -V
+  register: ag_installed
+  ignore_errors: yes
+  changed_when: false
+  failed_when: false
+  tags: ag
+
+- name: get latest release url
+  uri:
+    url: "{{ github_api }}/repos/ggreer/the_silver_searcher/tags"
+    return_content: yes
+  register: release
+  no_log: yes
+  tags:
+    - ag
+
+- name: get package url
+  set_fact:
+    ag_tarball: "{{ release.json[0].tarball_url }}"
+    ag_version: "{{ release.json[0].name }}"
+  no_log: yes
+
+- block:
+
+  - name: delete outdated ag
+    become: yes
+    file:
+      state: absent
+      path:  "/usr/local/bin/ag"
+    when: ag_installed.rc == 0 and ag_version not in ag_installed.stdout
+
+  - name: Install ag  prerequisites
+    apt:
+      name:
+        - automake
+        - pkg-config
+        - libpcre3-dev
+        - zlib1g-dev
+        - liblzma-dev
+      state: latest
+      install_recommends: no
+    become: yes
+
+  - name: set working dir
+    set_fact:
+      ag_dir: "/tmp/the_silver_searcher-{{ ag_version}}"
+
+  - name: create {{ ag_dir }}
+    file:
+      path: "{{ ag_dir }}"
+      state: directory
+
+  - name: download and extract ag src to {{ ag_dir }}
+    become: yes
+    unarchive:
+      src: "{{ ag_tarball }}"
+      dest: "{{ ag_dir }}"
+      owner: "{{ ansible_user_id }}"
+      copy: no
+      list_files: no
+      extra_opts: "--strip-components=1"
+      creates: "{{ ag_dir }}/build.sh"
+
+  - name: Run build script for ag
+    shell: ./build.sh
+    args:
+      chdir: "{{ ag_dir }}"
+      creates: "{{ ag_dir }}/ag"
+
+  - name: Install ag
+    command: make install
+    args:
+      chdir: "{{ ag_dir }}"
+      creates: "/usr/local/bin/ag"
+    become: yes
+
+  when: ag_installed.rc != 0 or ag_version not in ag_installed.stdout
+  tags:
+    - ag

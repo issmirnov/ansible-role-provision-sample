@@ -1,0 +1,187 @@
+---
+- name: accept xcode license
+  command: xcodebuild -license accept
+  become: yes
+  register: xcode
+  changed_when: "'command line tools are already installed' not in xcode.stdout"
+  tags:
+    - brew
+
+# prepare taps
+- homebrew_tap:
+    name: "{{ item }}"
+  with_items:
+    - homebrew/cask
+    - homebrew/services
+    - moncho/dry
+    - crisidev/homebrew-chunkwm
+    - issmirnov/apps
+  tags:
+    - brew
+    - caskapps
+
+# install brew and cask apps.
+- name: install brew core apps
+  package: >
+    name={{ item }}
+    state=latest
+  with_items:
+    - ag
+    - ansible
+    - aria2
+    - bat
+    - cheat
+    - ccat
+    - chrome-cli
+    - chunkwm
+    - cloc
+    - cmake
+    - coreutils
+    - dockutil
+    - dry
+    - fasd
+    - fd
+    - fzf
+    - gcc
+    - gnu-sed
+    - gnu-tar
+    - go
+    - goreleaser/tap/goreleaser
+    - htop-osx
+    - httpie
+    - jq
+    - koekeishiya/formulae/khd
+    - "m-cli"
+    - mas
+    - mongodb
+    - moreutils
+    - ncdu
+    - nmap
+    - node
+    - pv
+    - python
+    - python3
+    - rename
+    - task
+    - tasksh
+    - tinc
+    - the_silver_searcher
+    - tmux
+    - tree
+    - vim
+    - watch
+    - wget
+    - youtube-dl
+    - zap
+    - zsh
+    - zsh-completions
+  tags:
+    - brew
+
+- name: install brew core apps that need custom configs.
+  homebrew:
+    name: "{{ item.name }}"
+    install_options: "{{ item.opts }}"
+    state: latest
+  with_items: "{{ homebrew_apps_with_config }}"
+  tags:
+    - brew
+
+# install cask apps.
+- name: install cask apps
+  homebrew_cask:
+    name: "{{ item }}"
+    state: upgraded
+    update_homebrew: yes
+    install_options: force
+  with_items:
+    - alfred
+    - android-file-transfer
+    - android-platform-tools
+    - ansible-lint
+    - atom
+    - bartender
+    - bettertouchtool
+    - borgbackup
+    - calibre
+    - coconutbattery
+    - deluge
+    - disk-inventory-x
+    - docker
+    - filezilla
+    - flux
+    - flycut
+    - freefilesync
+    - google-chrome
+    - java
+    - karabiner-elements
+    - launchcontrol
+    - libreoffice
+    - logitech-options
+    - macdown
+    - mosh
+    - osxfuse
+    - path-finder
+    - smcfancontrol
+    - steam
+    - standard-notes
+    - spotify
+    - the-unarchiver
+    - tuntap
+    - usb-overdrive
+    - vagrant
+    - veracrypt
+    - virtualbox
+    - vlc
+    - yamllint
+    - yujitach-menumeters
+  tags: caskapps
+
+- name: start brew services
+  command: "/usr/local/bin/brew services start {{ item }}"
+  register: brew_service_result
+  changed_when: "'Successfully started' in brew_service_result.stdout"
+  with_items: "{{ homebrew_services }}"
+  tags:
+    - brew
+    - services
+
+# Install apps from mac app store
+- name: login to mac app store
+  command: mas signin {{ mas_username }}
+  register: login_result
+  failed_when: "not ('Already signed in' in login_result.stdout or login_result.rc == 0)"
+  tags:
+    - mas
+
+- name: install mac app store apps
+  command: mas install {{ item.id }}
+  with_items: "{{ mas_apps }}"
+  tags:
+    - mas
+
+# set up preferences.
+- name: kill all affected apps before uploading preferences
+  command: osascript -e 'tell application "{{ item.name }}" to quit'
+  with_items: "{{ apps_prefs }}"
+  tags:
+    - app_prefs
+
+- name: upload preference files.
+  copy: src=prefs/{{ item.fname }} dest="{{ user_prefs }}/{{ item.fname }}"
+  with_items: "{{ apps_prefs }}"
+  tags:
+    - app_prefs
+
+- name: reload preferences daemon
+  command: killall cfprefsd
+  tags:
+    - app_prefs
+
+- name: restart apps with new preferences
+  command: osascript -e 'tell application "{{ item.name }}" to activate'
+  with_items: "{{ apps_prefs }}"
+  ignore_errors: yes
+  failed_when: false
+  tags:
+    - app_prefs

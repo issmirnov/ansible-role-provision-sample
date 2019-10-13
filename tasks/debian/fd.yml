@@ -1,0 +1,54 @@
+---
+- name: Check if fd already installed
+  shell: fd --version
+  register: fd_installed
+  ignore_errors: yes
+  changed_when: false
+  failed_when: false
+  tags: fd
+
+- name: get latest release
+  uri:
+    url: "{{ github_api }}/repos/sharkdp/fd/releases/latest"
+    return_content: yes
+  register: release
+  no_log: yes
+  tags:
+    - fd
+
+- block:
+
+  - name: delete outdated fd
+    become: yes
+    file:
+      state: absent
+      path: /usr/local/bin/fd
+    when: fd_installed.rc == 0 and release.json.name[:1] not in fd_installed.stdout
+
+  - name: get package url
+    set_fact:
+      fd_release_json: "{{ item }}"
+    no_log: yes
+    with_items: "{{ release.json.assets }}"
+    when: '"x86_64-unknown-linux-gnu" in item.name'
+
+
+  - name: extract fd to /usr/local/bin
+    become: yes
+    unarchive:
+      src: "{{ fd_release_json.browser_download_url }}"
+      dest: /tmp
+      copy: no
+      list_files: no
+      extra_opts: "--strip-components=1"
+      creates: "/tmp/fd"
+
+  - name: move fd into /usr/local/bin
+    become: yes
+    command: "mv /tmp/fd /usr/local/bin/fd"
+    args:
+      creates: /usr/local/bin/fd
+
+  when: fd_installed.rc != 0 or release.json.name[1:] not in fd_installed.stdout
+  tags:
+    - fd

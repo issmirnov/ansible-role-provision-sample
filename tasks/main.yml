@@ -1,0 +1,26 @@
+---
+- block:
+  - name: create ~/.ssh dir
+    file:
+      path: ~/.ssh
+      state: directory
+
+  - name: generate private key
+    shell: ssh-keygen -t rsa -K 4096 -f ~/.ssh/{{ hostname }} -q -N ""
+    args:
+      chdir: ~/.ssh/
+      creates: ~/.ssh/{{ hostname }}.pub
+
+  - name: Create ~/.ssh/config add IdentityFile
+    lineinfile:
+      destfile: ~/.ssh/config
+      state: present
+      create: yes
+      line: 'IdentityFile ~/.ssh/{{ hostname }}'
+  when: hostname is defined
+
+- include_tasks: debian.yml
+  when: ansible_os_family == 'Debian' or ansible_os_family == 'Linuxmint'
+
+- include_tasks: darwin.yml
+  when: ansible_os_family == 'Darwin'

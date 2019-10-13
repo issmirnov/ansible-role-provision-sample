@@ -1,0 +1,107 @@
+---
+- name: check if tmux installed and is outdated
+  command: tmux -V
+  register: tmux_version
+  changed_when: false
+  failed_when: false
+  tags:
+    - tmux
+
+- name: get latest tmux release url
+  uri:
+      url: "{{ github_api }}/repos/tmux/tmux/releases/latest"
+      return_content: yes
+  register: release
+  tags:
+    - tmux
+
+- name: get tmux package url
+  set_fact:
+    tmux_tarball: "{{ release.json.tarball_url }}"
+  no_log: yes
+  tags:
+    - tmux
+
+- block:
+  - name: delete outdated tmux
+    become: yes
+    file:
+      state: absent
+      path: "/usr/local/bin/tmux"
+    when: tmux_version.rc == 0 and release.json.tag_name not in tmux_version.stdout
+
+  - name: Install tmux prerequisites
+    apt:
+      name:
+        - automake
+        - build-essential
+        - pkg-config
+        - libevent-dev
+        - libncurses5-dev
+      state: latest
+      install_recommends: no
+    become: yes
+    tags:
+      - tmux
+
+  - name: set working dir
+    set_fact:
+      tmux_dir: "/tmp/tmux-{{ release.json.tag_name }}"
+    tags:
+      - tmux
+
+  - name: download tmux
+    get_url:
+      url: "{{ tmux_tarball }}"
+      dest: "/tmp/tmux-{{ release.json.tag_name }}.tgz"
+    tags:
+      - tmux
+  - name: create {{ tmux_dir }}
+    file:
+      path: "{{ tmux_dir }}"
+      state: directory
+      owner: "{{ ansible_user_id }}"
+    tags:
+      - tmux
+
+  - name: extract tmux to /tmp/
+    become: yes
+    unarchive:
+      src: "/tmp/tmux-{{ release.json.tag_name }}.tgz"
+      dest: "{{ tmux_dir }}"
+      owner: "{{ ansible_user_id }}"
+      copy: no
+      list_files: no
+      extra_opts: "--strip-components=1"
+      creates: "{{ tmux_dir }}/configue"
+    tags:
+      - tmux
+
+  - name: Run autogen script for tmux
+    shell: ./autogen.sh
+    args:
+      chdir: "{{ tmux_dir }}"
+      creates: "{{ tmux_dir }}/configure"
+    become: yes
+    tags:
+    - tmux
+
+  - name: Run configure script for tmux
+    shell: ./configure
+    args:
+      chdir: "{{ tmux_dir }}"
+      creates: "{{ tmux_dir }}/Makefile"
+    become: yes
+    tags:
+    - tmux
+
+  - name: Install tmux
+    command: make install
+    args:
+      chdir: "{{ tmux_dir }}"
+      creates: "/usr/local/bin/tmux"
+    become: yes
+    tags:
+    - tmux
+
+  when: tmux_version.rc != 0 or release.json.name not in tmux_version.stdout

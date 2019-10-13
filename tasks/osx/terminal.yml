@@ -1,0 +1,27 @@
+---
+
+- name: Upload solarized dark settings file
+  copy: src=files/SolarizedDark.terminal dest=/tmp/SolarizedDark.terminal
+  tags:
+    - terminal
+
+- name: Open the terminal settings file
+  command: open /tmp/SolarizedDark.terminal
+  ignore_errors: yes
+  tags:
+    - terminal
+
+- name: save changes to default terminal theme
+  command: 'defaults write {{ user_prefs }}/com.apple.Terminal {{ item }}'
+  with_items:
+    - '"Default Window Settings" -string "SolarizedDark"'
+    - '"Startup Window Settings" -string "SolarizedDark"'
+  tags:
+    - terminal
+
+- name: reload preferences daemon
+  command: killall cfprefsd
+  tags:
+    - terminal
+
+# NOTE: We do not kill the terminal, since the user might be running locally.

@@ -1,0 +1,20 @@
+---
+- name: create directory for apt-daily-timer
+  file:
+    path: /etc/systemd/system/apt-daily.timer.d
+    state: directory
+    mode: 0755
+  become: yes
+
+- name: add delay to "apt-daily-upgrade.service" to speed up boot time
+  become: yes
+  copy:
+    src: apt-daily.timer
+    dest: /etc/systemd/system/apt-daily.timer.d/override.conf
+    force: yes
+    mode: 0644
+
+- name: validate timer override syntax
+  become: yes
+  command: systemd-analyze verify apt-daily.timer
+  changed_when: false

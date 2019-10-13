@@ -1,0 +1,79 @@
+---
+- hostname: name={{hostname}}
+  become: yes
+  when: hostname is defined
+
+# temporarily move this up, for fast failures in CI.
+- include_tasks: debian/apt-daily-timer.yml
+
+# install all basic deps I deem needed.
+- name: Update all packages to the latest version
+  become: yes
+  apt:
+    upgrade: dist
+    update_cache: yes
+  when: not skip_upgrades
+  tags:
+    - update
+    - core
+
+# note that zsh and tmux come from source.
+- name: Install core packages
+  become: yes
+  apt:
+    name:
+      - apt-transport-https
+      - coreutils
+      - curl
+      - git
+      - htop
+      - httpie
+      - jq
+      - lnav
+      - moreutils
+      - mosh
+      - ncdu
+      - python-pip
+      - python-setuptools
+      - redshift
+      - rng-tools
+      - software-properties-common
+      - sshpass
+      - tree
+      - unzip
+      - vim
+    state: present
+  ignore_errors: True
+  tags:
+    - core
+
+- name: Install development packages
+  become: yes
+  apt:
+    name:
+      - autoconf
+      - build-essential
+      - libtool
+      - make
+    state: present
+  ignore_errors: True
+  tags:
+    - core
+
+- name: install cheat
+  become: yes
+  pip:
+    name: cheat
+    executable: /usr/bin/pip # avoids bug where ansible uses pip2 binary.
+  tags:
+    - cheat
+
+- include_tasks: debian/apt-daily-timer.yml
+- include_tasks: debian/ag.yml
+- include_tasks: debian/bat.yml
+- include_tasks: debian/datetime.yml
+- include_tasks: debian/fasd.yml
+- include_tasks: debian/fd.yml
+- include_tasks: debian/fzf.yml
+- include_tasks: debian/gotop.yml
+- include_tasks: debian/tmux.yml

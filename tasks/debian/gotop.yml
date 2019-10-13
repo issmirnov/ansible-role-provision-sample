@@ -1,0 +1,50 @@
+---
+- name: Check if gotop already installed
+  shell: gotop -v
+  register: gotop_installed
+  ignore_errors: yes
+  changed_when: false
+  failed_when: false
+  tags: gotop
+
+- name: get latest release
+  uri:
+    url: "{{ github_api }}/repos/cjbassi/gotop/releases/latest"
+    return_content: yes
+  register: release
+  no_log: yes
+  tags:
+    - gotop
+
+- block:
+  - name: delete outdated gotop
+    become: yes
+    file:
+      state: absent
+      path: /usr/local/bin/gotop
+    when: gotop_installed.rc == 0 and release.json.tag_name not in gotop_installed.stdout
+
+  - name: set expected gotop package name
+    set_fact:
+      gotop_name: "{{ ansible_system | lower }}_amd64"
+
+  - name: get package url
+    set_fact:
+      gotop_release_json: "{{ item }}"
+    no_log: yes
+    with_items: "{{ release.json.assets }}"
+    when: "gotop_name in item.name"
+
+
+  - name: extract gotop to /usr/local/bin
+    become: yes
+    unarchive:
+      src: "{{ gotop_release_json.browser_download_url }}"
+      dest: /usr/local/bin
+      copy: no
+      list_files: no
+      creates: "/usr/local/bin/gotop"
+
+  when: gotop_installed.rc != 0 or release.json.tag_name not in gotop_installed.stdout
+  tags:
+    - gotop

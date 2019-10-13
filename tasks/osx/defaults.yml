@@ -1,0 +1,55 @@
+---
+# set default preferences=
+
+- name: close any open system preferences window instances.
+  command: osascript -e 'tell application "System Preferences" to quit'
+  tags:
+    - defaults
+
+- name: upload defaults script
+  copy: src={{ item }} dest=~/{{ item }} mode=0777
+  with_items:
+    - osx.sh
+  tags:
+    - defaults
+
+- name: upload defaults script (sudo)
+  copy: src={{ item }} dest=~/{{ item }} mode=0777
+  become: yes
+  with_items:
+    - osx_sudo.sh
+  tags:
+    - defaults
+
+- name: run defaults script
+  command: bash ~/osx.sh
+  tags:
+    - defaults
+
+- name: run defaults script (sudo version)
+  command: sh ~/osx_sudo.sh
+  become: yes
+  tags:
+    - defaults
+
+- name: clean up defaults script
+  file: path=~/{{ item }} state=absent
+  with_items:
+    - osx_sudo.sh
+    - osx.sh
+  tags:
+    - defaults
+
+- block:
+  - name: set hostname
+    command: "{{ item }}"
+    become: yes
+    with_items:
+      - sudo scutil --set ComputerName {{ hostname }}
+      - sudo scutil --set HostName {{ hostname }}
+      - sudo scutil --set LocalHostName {{ hostname }}
+      - sudo defaults write /Library/Preferences/SystemConfiguration/com.apple.smb.server NetBIOSName -string {{ hostname }}
+    tags:
+      - defaults
+      - hostname
+  when: hostname is defined
